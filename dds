@@ -1,0 +1,238 @@
+/* student_records.c
+   Student Record Management System using arrays, searching, sorting & filtering
+   Compile: gcc -std=c99 -Wall -Wextra student_records.c -o student_records
+*/
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#define MAX 100
+
+typedef struct {
+    int roll;
+    char name[50];
+    float marks;
+} Student;
+
+Student students[MAX];
+int n = 0;
+
+/* --- Helpers --- */
+void readLine(char *buf, int size) {
+    if (fgets(buf, size, stdin)) {
+        char *p = strchr(buf, '\n');
+        if (p) *p = '\0';
+        else {
+            int c;
+            while ((c = getchar()) != '\n' && c != EOF);
+        }
+    } else {
+        buf[0] = '\0';
+    }
+}
+
+void swap(Student *a, Student *b) {
+    Student t = *a; *a = *b; *b = t;
+}
+
+/* --- CRUD --- */
+void insertStudent() {
+    if (n >= MAX) { puts("Storage full."); return; }
+    Student s;
+    printf("Roll: "); if (scanf("%d", &s.roll) != 1) { while(getchar()!= '\n'); puts("Invalid input."); return; }
+    while (getchar() != '\n');              /* clear newline */
+    printf("Name: "); readLine(s.name, sizeof s.name);
+    printf("Marks: "); if (scanf("%f", &s.marks) != 1) { while(getchar()!= '\n'); puts("Invalid input."); return; }
+    while (getchar() != '\n');
+    students[n++] = s;
+    puts("Inserted.");
+}
+
+void deleteStudent() {
+    if (n == 0) { puts("No records."); return; }
+    int r; printf("Roll to delete: "); if (scanf("%d", &r) != 1) { while(getchar()!= '\n'); return; }
+    int idx = -1;
+    for (int i = 0; i < n; ++i) if (students[i].roll == r) { idx = i; break; }
+    if (idx == -1) { puts("Not found."); return; }
+    for (int i = idx; i < n-1; ++i) students[i] = students[i+1];
+    --n;
+    puts("Deleted.");
+    while (getchar() != '\n');
+}
+
+void updateStudent() {
+    if (n == 0) { puts("No records."); return; }
+    int r; printf("Roll to update: "); if (scanf("%d", &r) != 1) { while(getchar()!= '\n'); return; }
+    int found = 0;
+    for (int i = 0; i < n; ++i) {
+        if (students[i].roll == r) {
+            found = 1;
+            while (getchar() != '\n');
+            printf("New name: "); readLine(students[i].name, sizeof students[i].name);
+            printf("New marks: "); if (scanf("%f", &students[i].marks) != 1) { while(getchar()!= '\n'); puts("Invalid marks."); return; }
+            while (getchar() != '\n');
+            puts("Updated.");
+            break;
+        }
+    }
+    if (!found) puts("Roll not found.");
+}
+
+void displayStudents() {
+    if (n == 0) { puts("No students."); return; }
+    puts("Roll\tName\t\tMarks");
+    puts("----\t----\t\t-----");
+    for (int i = 0; i < n; ++i)
+        printf("%d\t%-15s\t%.2f\n", students[i].roll, students[i].name, students[i].marks);
+}
+
+/* --- Searching --- */
+void linearSearch() {
+    if (n == 0) { puts("No records."); return; }
+    int r; printf("Roll to search (Linear): "); if (scanf("%d", &r) != 1) { while(getchar()!= '\n'); return; }
+    for (int i = 0; i < n; ++i) {
+        if (students[i].roll == r) { printf("Found: %d %s %.2f\n", students[i].roll, students[i].name, students[i].marks); return; }
+    }
+    puts("Not found.");
+    while (getchar() != '\n');
+}
+
+/* Ensure array sorted by roll for binary & interpolation */
+void quickSortByRoll(int low, int high) {
+    if (low >= high) return;
+    int i = low - 1, pivot = students[high].roll;
+    for (int j = low; j < high; ++j)
+        if (students[j].roll <= pivot) swap(&students[++i], &students[j]);
+    swap(&students[i+1], &students[high]);
+    int pi = i+1;
+    quickSortByRoll(low, pi-1);
+    quickSortByRoll(pi+1, high);
+}
+
+void binarySearch() {
+    if (n == 0) { puts("No records."); return; }
+    int r; printf("Roll to search (Binary) - array will be sorted by roll: "); if (scanf("%d", &r) != 1) { while(getchar()!= '\n'); return; }
+    quickSortByRoll(0, n-1);
+    int lo = 0, hi = n-1;
+    while (lo <= hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (students[mid].roll == r) { printf("Found: %d %s %.2f\n", students[mid].roll, students[mid].name, students[mid].marks); return; }
+        else if (students[mid].roll < r) lo = mid + 1;
+        else hi = mid - 1;
+    }
+    puts("Not found.");
+    while (getchar() != '\n');
+}
+
+void interpolationSearch() {
+    if (n == 0) { puts("No records."); return; }
+    int r; printf("Roll to search (Interpolation) - array will be sorted by roll: "); if (scanf("%d", &r) != 1) { while(getchar()!= '\n'); return; }
+    quickSortByRoll(0, n-1);
+    int lo = 0, hi = n-1;
+    while (lo <= hi && r >= students[lo].roll && r <= students[hi].roll) {
+        if (students[hi].roll == students[lo].roll) { /* avoid div by zero */
+            if (students[lo].roll == r) { printf("Found: %d %s %.2f\n", students[lo].roll, students[lo].name, students[lo].marks); return; }
+            else break;
+        }
+        int pos = lo + (int)((double)(hi - lo) * (r - students[lo].roll) / (students[hi].roll - students[lo].roll));
+        if (pos < lo || pos > hi) break;
+        if (students[pos].roll == r) { printf("Found: %d %s %.2f\n", students[pos].roll, students[pos].name, students[pos].marks); return; }
+        if (students[pos].roll < r) lo = pos + 1; else hi = pos - 1;
+    }
+    puts("Not found.");
+    while (getchar() != '\n');
+}
+
+/* --- Sorting by marks (for ranking) --- */
+void bubbleSortByMarks() {
+    for (int i = 0; i < n-1; ++i)
+        for (int j = 0; j < n-1-i; ++j)
+            if (students[j].marks < students[j+1].marks) swap(&students[j], &students[j+1]); /* descending = top first */
+    puts("Sorted by marks (Bubble, descending).");
+}
+
+void selectionSortByMarks() {
+    for (int i = 0; i < n-1; ++i) {
+        int max = i;
+        for (int j = i+1; j < n; ++j)
+            if (students[j].marks > students[max].marks) max = j;
+        if (max != i) swap(&students[i], &students[max]);
+    }
+    puts("Sorted by marks (Selection, descending).");
+}
+
+void insertionSortByMarks() {
+    for (int i = 1; i < n; ++i) {
+        Student key = students[i];
+        int j = i-1;
+        while (j >= 0 && students[j].marks < key.marks) { students[j+1] = students[j]; --j; }
+        students[j+1] = key;
+    }
+    puts("Sorted by marks (Insertion, descending).");
+}
+
+/* Merge sort by roll (demonstrates another algorithm) */
+Student tempArr[MAX];
+void mergeByRoll(int l, int m, int r) {
+    int i = l, j = m+1, k = l;
+    while (i <= m && j <= r) {
+        if (students[i].roll <= students[j].roll) tempArr[k++] = students[i++]; else tempArr[k++] = students[j++];
+    }
+    while (i <= m) tempArr[k++] = students[i++];
+    while (j <= r) tempArr[k++] = students[j++];
+    for (i = l; i <= r; ++i) students[i] = tempArr[i];
+}
+void mergeSortByRoll(int l, int r) {
+    if (l >= r) return;
+    int m = (l + r) / 2;
+    mergeSortByRoll(l, m);
+    mergeSortByRoll(m+1, r);
+    mergeByRoll(l, m, r);
+    if (l == 0 && r == n-1) puts("Sorted by roll (Merge).");
+}
+
+/* --- Filtering --- */
+void filterByMarks() {
+    if (n == 0) { puts("No records."); return; }
+    float threshold; printf("Show students with marks >= "); if (scanf("%f", &threshold) != 1) { while(getchar()!= '\n'); return; }
+    puts("Roll\tName\t\tMarks");
+    puts("----\t----\t\t-----");
+    int found = 0;
+    for (int i = 0; i < n; ++i) if (students[i].marks >= threshold) { printf("%d\t%-15s\t%.2f\n", students[i].roll, students[i].name, students[i].marks); found = 1; }
+    if (!found) puts("No students meet the threshold.");
+    while (getchar() != '\n');
+}
+
+/* --- Menu --- */
+int main(void) {
+    int choice;
+    for (;;) {
+        puts("\n--- Student Records ---");
+        puts("1 Insert  2 Delete  3 Update  4 Display");
+        puts("5 Linear Search  6 Binary Search  7 Interpolation Search");
+        puts("8 Bubble Sort by Marks  9 Selection Sort by Marks  10 Insertion Sort by Marks");
+        puts("11 Quick Sort by Roll  12 Merge Sort by Roll  13 Filter by Marks  0 Exit");
+        printf("Choice: ");
+        if (scanf("%d", &choice) != 1) { puts("Invalid."); break; }
+        while (getchar() != '\n');
+        switch (choice) {
+            case 1: insertStudent(); break;
+            case 2: deleteStudent(); break;
+            case 3: updateStudent(); break;
+            case 4: displayStudents(); break;
+            case 5: linearSearch(); break;
+            case 6: binarySearch(); break;
+            case 7: interpolationSearch(); break;
+            case 8: bubbleSortByMarks(); break;
+            case 9: selectionSortByMarks(); break;
+            case 10: insertionSortByMarks(); break;
+            case 11: quickSortByRoll(0, n-1); puts("Sorted by roll (Quick)."); break;
+            case 12: mergeSortByRoll(0, n-1); break;
+            case 13: filterByMarks(); break;
+            case 0: puts("Bye."); return 0;
+            default: puts("Invalid choice."); break;
+        }
+    }
+    return 0;
+}
